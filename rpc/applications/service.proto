@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package applications;
+option go_package = "argus-core/rpc/applications";
+
+service ApplicationsService {
+  rpc CreateApplication(CreateApplicationRequest) returns (CreateApplicationResponse);
+  rpc ListApplications(ListApplicationsRequest) returns (ListApplicationsResponse);
+  rpc GetApplication(GetApplicationRequest) returns (GetApplicationResponse);
+  rpc UpdateApplication(UpdateApplicationRequest) returns (UpdateApplicationResponse);
+  rpc DeleteApplication(DeleteApplicationRequest) returns (DeleteApplicationResponse);
+  rpc RegenerateKey(RegenerateKeyRequest) returns (RegenerateKeyResponse);
+}
+
+message Application {
+  string id = 1;
+  string user_id = 2;
+  string name = 3;
+  string description = 4;
+  string created_at = 5;
+  string updated_at = 6;
+}
+
+message CreateApplicationRequest {
+  string token = 1;
+  string name = 2;
+  string description = 3;
+}
+
+message CreateApplicationResponse {
+  Application application = 1;
+  string key = 2;  // The API key for the application
+}
+
+message ListApplicationsRequest {
+  string token = 1;
+}
+
+message ListApplicationsResponse {
+  repeated Application applications = 1;
+}
+
+message GetApplicationRequest {
+  string token = 1;
+  string application_id = 2;
+}
+
+message GetApplicationResponse {
+  Application application = 1;
+}
+
+message UpdateApplicationRequest {
+  string token = 1;
+  string application_id = 2;
+  string name = 3;
+  string description = 4;
+}
+
+message UpdateApplicationResponse {
+  Application application = 1;
+}
+
+message DeleteApplicationRequest {
+  string token = 1;
+  string application_id = 2;
+}
+
+message DeleteApplicationResponse {}
+
+message RegenerateKeyRequest {
+  string token = 1;
+  string application_id = 2;
+}
+
+message RegenerateKeyResponse {
+  string key = 1;  // The new API key
+}

@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+package logs;
+option go_package = "argus-core/rpc/logs";
+
+service LogsService {
+  rpc SendLogs(SendLogsRequest) returns (SendLogsResponse);
+  rpc GetLogs(GetLogsRequest) returns (GetLogsResponse);
+  rpc GenerateDummyLogs(GenerateDummyLogsRequest) returns (GenerateDummyLogsResponse);
+}
+
+// Log level enum
+enum LogLevel {
+  UNKNOWN = 0;
+  DEBUG = 1;
+  INFO = 2;
+  WARN = 3;
+  ERROR = 4;
+  FATAL = 5;
+}
+
+// Individual log entry
+message LogEntry {
+  string log_id = 1;
+  string timestamp = 2;
+  LogLevel level = 3;
+  string message = 4;
+}
+
+message SendLogsRequest {
+  string api_key = 1;  // Application API key for authentication
+  repeated LogEntry logs = 2;
+}
+
+message SendLogsResponse {
+  int32 accepted_count = 1;  // Number of logs successfully stored
+}
+
+message GetLogsRequest {
+  string token = 1;  // User JWT token for authentication
+  string application_id = 2;
+  int32 page_size = 3;  // Number of logs per page (default/max: 100)
+  string cursor = 4;    // Timestamp of the last log from previous page
+  string log_level = 5; // Optional: Filter by log level
+  string start_time = 6; // Optional: Start timestamp (RFC3339)
+  string end_time = 7;   // Optional: End timestamp (RFC3339)
+}
+
+message GetLogsResponse {
+  repeated LogEntry logs = 1;
+  bool has_more = 2;
+  string next_cursor = 3;  // Timestamp to use for the next page
+  int32 total_count = 4;   // Total number of logs matching the filter
+  string application_name = 5;
+}
+
+message GenerateDummyLogsRequest {
+  string token = 1;
+  string application_id = 2;
+}
+
+message GenerateDummyLogsResponse {
+  int32 generated_count = 1;
+}
