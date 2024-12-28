@@ -44,8 +44,9 @@ const (
 )
 
 type LogEntry struct {
-	Level   LogLevel
-	Message string
+	Level     LogLevel
+	Message   string
+	Timestamp string
 }
 
 func (c *Client) SendLogs(entries []LogEntry) error {
@@ -62,7 +63,7 @@ func (c *Client) SendLogs(entries []LogEntry) error {
 	for i, entry := range entries {
 		pbLogs[i] = &logs.LogEntry{
 			LogId:     uuid.New().String(),
-			Timestamp: time.Now().Format(time.RFC3339),
+			Timestamp: entry.Timestamp,
 			Level:     logs.LogLevel(entry.Level),
 			Message:   entry.Message,
 		}
@@ -136,8 +137,9 @@ func (h *ArgusHandler) Handle(ctx context.Context, record slog.Record) error {
 	}[record.Level]
 
 	entry := LogEntry{
-		Level:   level,
-		Message: record.Message,
+		Level:     level,
+		Message:   record.Message,
+		Timestamp: time.Now().Format(time.RFC3339),
 	}
 
 	h.bufferMutex.Lock()
