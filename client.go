@@ -6,6 +6,10 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 	"time"
 
 	"github.com/google/uuid"
@@ -72,13 +76,55 @@ func (c *Client) SendLogs(entries []LogEntry) error {
 	return err
 }
 
-// for slog handler
+// Custom slog.Handler implementation with batching and graceful shutdown
 type ArgusHandler struct {
-	client *Client
+	client      *Client
+	logBuffer   []LogEntry
+	bufferMutex sync.Mutex
+	flushTicker *time.Ticker
+	stopChan    chan struct{}
 }
 
 func NewArgusHandler(client *Client) *ArgusHandler {
-	return &ArgusHandler{client: client}
+	handler := &ArgusHandler{
+		client:      client,
+		logBuffer:   make([]LogEntry, 0, 30),
+		flushTicker: time.NewTicker(5 * time.Second), // Adjust the interval as needed
+		stopChan:    make(chan struct{}),
+	}
+
+	go handler.startBatching()
+	handler.setupSignalHandler()
+
+	return handler
+}
+
+func (h *ArgusHandler) startBatching() {
+	for {
+		select {
+		case <-h.flushTicker.C:
+			h.flushLogs()
+		case <-h.stopChan:
+			h.flushLogs()
+			return
+		}
+	}
+}
+
+func (h *ArgusHandler) flushLogs() {
+	h.bufferMutex.Lock()
+	defer h.bufferMutex.Unlock()
+
+	if len(h.logBuffer) == 0 {
+		return
+	}
+
+	err := h.client.SendLogs(h.logBuffer)
+	if err != nil {
+		log.Println("Failed to send logs: ", err)
+	}
+
+	h.logBuffer = h.logBuffer[:0] // Reset the buffer
 }
 
 func (h *ArgusHandler) Handle(ctx context.Context, record slog.Record) error {
@@ -94,12 +140,14 @@ func (h *ArgusHandler) Handle(ctx context.Context, record slog.Record) error {
 		Message: record.Message,
 	}
 
-	err := h.client.SendLogs([]LogEntry{entry})
-	if err != nil {
-		log.Println("Failed to send log: ", err)
+	h.bufferMutex.Lock()
+	h.logBuffer = append(h.logBuffer, entry)
+	if len(h.logBuffer) >= 30 {
+		go h.flushLogs()
 	}
+	h.bufferMutex.Unlock()
 
-	return err
+	return nil
 }
 
 func (h *ArgusHandler) Enabled(ctx context.Context, level slog.Level) bool {
@@ -112,4 +160,20 @@ func (h *ArgusHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 
 func (h *ArgusHandler) WithGroup(name string) slog.Handler {
 	return h
+}
+
+func (h *ArgusHandler) setupSignalHandler() {
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-signalChan
+		h.flushTicker.Stop()
+		close(h.stopChan)
+	}()
+}
+
+func (h *ArgusHandler) Flush() {
+	h.flushTicker.Stop()
+	h.flushLogs()
 }
