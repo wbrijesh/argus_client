@@ -3,13 +3,13 @@ package argus_client
 import (
 	"context"
 	"errors"
+	"log"
+	"log/slog"
 	"net/http"
-
-	"github.com/wbrijesh/argus_client/rpc/logs"
-
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/wbrijesh/argus_client/rpc/logs"
 )
 
 type Client struct {
@@ -70,4 +70,46 @@ func (c *Client) SendLogs(entries []LogEntry) error {
 	})
 
 	return err
+}
+
+// for slog handler
+type ArgusHandler struct {
+	client *Client
+}
+
+func NewArgusHandler(client *Client) *ArgusHandler {
+	return &ArgusHandler{client: client}
+}
+
+func (h *ArgusHandler) Handle(ctx context.Context, record slog.Record) error {
+	level := map[slog.Level]LogLevel{
+		slog.LevelDebug: LevelDebug,
+		slog.LevelInfo:  LevelInfo,
+		slog.LevelWarn:  LevelWarn,
+		slog.LevelError: LevelError,
+	}[record.Level]
+
+	entry := LogEntry{
+		Level:   level,
+		Message: record.Message,
+	}
+
+	err := h.client.SendLogs([]LogEntry{entry})
+	if err != nil {
+		log.Println("Failed to send log: ", err)
+	}
+
+	return err
+}
+
+func (h *ArgusHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return true
+}
+
+func (h *ArgusHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return h
+}
+
+func (h *ArgusHandler) WithGroup(name string) slog.Handler {
+	return h
 }
